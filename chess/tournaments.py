@@ -1,6 +1,10 @@
 import random
+from copy import copy
 
+import pandas as pd
 import chess.pgn
+
+from PIL import Image, ImageFilter, ImageOps, ImageFont, ImageDraw
 
 
 class Player:
@@ -84,25 +88,36 @@ class SwissTournament(BaseTournament):
         super().__init__()
 
         self.pairings = {}
+        self.standings = {}
+        self.name = ""
+
+    def add_name(self, name):
+        assert not self.started
+        self.name = name
 
     def add_player(self, player: Player):
+        assert not self.started
         self.players.append(player)
 
-    def start_standings(self):  # REVIEW: needs testing
-        standings = {player: player.rating for player in self.players}
+    def order_standings(self):  # REVIEW: needs testing
+        standings = {player: [player.points, player.rating] for player in self.players}
 
         # calling dict() because sorted() turns it into list[tuple[key, value]]
-        self.standings = dict(sorted(standings.items(), key=lambda item: item[1], reverse=True))
+        self.standings = dict(sorted(standings.items(), key=lambda item: (item[1][0], item[1][1]), reverse=True))
 
     def start(self):
         self.started = True
-        self.start_standings()
+        self.order_standings()
+
+    def end(self):
+        self.render_standings()
+        self.started = False
 
     @staticmethod
     def points_rating_diff(player1, player2):
         return [player2, abs(player1.points - player2.points), abs(player1.rating - player2.rating)]
 
-    def generate_pairings(self):  # TODO: need better (and more efficient) way to calculate pairings
+    def generate_pairings(self):
         pairings = {}
 
         # standings - by definition - already have to be sorted by (in this case) rating and total points
@@ -136,6 +151,9 @@ class SwissTournament(BaseTournament):
                 if diff[2] < closest[2]:
                     closest = diff
                     continue
+
+            if closest is None:
+                continue
             pairings[player1] = closest[0]
 
         pairings_match = []
@@ -144,12 +162,105 @@ class SwissTournament(BaseTournament):
             black = player if white == pairings[player] else pairings[player]
 
             pairings_match.append(Match(white, black))
+
+        if not pairings_match:
+            self.end()
+
         return pairings_match
 
-    # check out https://pypi.org/project/datasheets/
-    # might have to change function name
+    # will be done with pandas dataframe
+    # check out https://pypi.org/project/dataframe-image/
+    def generate_standings(self):
+        assert self.started
+        self.order_standings()
+
+        data = {player: [player.points, player.rating] for player in self.standings.keys()}
+        standings_df = pd.DataFrame(data=data)
+
+        row_names = {
+            0: "points",
+            1: "rating"
+        }
+        standings_df = standings_df.rename(index=row_names)
+
+        standings_df = standings_df.transpose()
+        return standings_df
+
     def render_standings(self):
-        assert self.started  # TODO: continue
+        assert self.started
+        self.order_standings()
+
+        # DO NOT CHANGE PLEASE, THEY WORK.
+        name_rect = (64, 48, 64 + 2432, 48 + 115)
+
+        width = 608
+        height = 115
+
+        left = 60
+        right = left + width
+        upper = 343
+        lower = upper + height
+
+        height_limit = 1800
+        starting_rect = (left, upper, right, lower)
+
+        image = Image.open("templates/chess.png").convert()
+        font = ImageFont.truetype("fonts/font.ttf", size=75)
+
+        title_crop = image.crop(box=name_rect)
+        draw_title = ImageDraw.Draw(title_crop)
+
+        title = self.name + " Standings" if self.name else "Tournament Standings"
+        title_width = 2432
+        title_height = 115
+        _, _, w, h = draw_title.textbbox((0, 0), title, font=font)
+
+        draw_title.text(xy=((title_width - w) / 2, (title_height - h) / 2), text=title, font=font, fill="black", stroke_width=1,
+                        stroke_fill="black", align="center")
+
+        image.paste(title_crop, box=(name_rect[0], name_rect[1]))
+
+        def create_crops(lst):
+            res = []
+            for item in lst:
+                item = image.crop(box=item)
+                item = item.filter(ImageFilter.GaussianBlur(radius=18))
+                item = ImageOps.expand(item, border=7, fill="black")
+                res.append(item)
+
+            return res
+
+        for i, player in enumerate(self.standings.keys()):
+            pos = i + 1
+            name = player.name
+            points = player.points
+            rating = player.rating
+
+            # (left, upper, right, lower)
+            second_rect = (starting_rect[2], upper, starting_rect[2] + width, lower)
+            third_rect = (second_rect[2], upper, second_rect[2] + width, lower)
+            fourth_rect = (third_rect[2], upper, third_rect[2] - 6 + width, lower)
+
+            rects = [starting_rect, second_rect, third_rect, fourth_rect]
+            crops = create_crops(rects)
+            columns = [pos, name, points, rating]
+
+            for rect, column, crop in zip(rects, columns, crops):
+                crop_copy = copy(crop)
+                draw = ImageDraw.Draw(crop_copy)
+                _, _, w, h = draw.textbbox((0, 0), str(column), font=font)
+                draw.text(((width - w) / 2, (height - h) / 2), str(column), font=font, fill="black", stroke_width=1,
+                          stroke_fill="black")
+
+                image.paste(crop_copy, box=(rect[0], rect[1]))
+
+            upper = upper + height
+            lower = upper + height
+            if lower > height_limit:
+                break
+            starting_rect = (left, upper, right, lower)
+
+        image.save("standings.png")
 
     def play_matches(self):
         assert self.started

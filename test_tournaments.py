@@ -10,6 +10,7 @@ tournament.add_player(TournamentPlayer("John5", 700))
 tournament.add_player(TournamentPlayer("John6", 400))
 tournament.add_player(TournamentPlayer("John7", 100))
 tournament.add_player(TournamentPlayer("John8", 1))
+tournament.add_name("Sim Tourney Test")
 
 tournament.start()
 
@@ -18,6 +19,15 @@ for pair in round_1_pairings:
     pair.sim_play()
 
 print(round_1_pairings)
+print(tournament.generate_standings())
 
 round_2_pairings = tournament.generate_pairings()
 print(round_2_pairings)
+
+# final test
+pairings = True
+while pairings:
+    pairings = tournament.generate_pairings()
+    for pair in pairings:
+        pair.sim_play()
+
