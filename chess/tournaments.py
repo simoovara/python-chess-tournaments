@@ -1,3 +1,4 @@
+import math
 import random
 from copy import copy
 
@@ -43,6 +44,32 @@ class Match:
         self.result = random.choice(["1-0", "0-1", "1/2-1/2"])
         self.add_match_to_players()
 
+    def update_elo(self):
+        assert self.result
+        k = 30
+
+        def probability(rating_a, rating_b):
+            return 1.0 * 1.0 / (1 + 1.0 * math.pow(10, 1.0 * (rating_a - rating_b) / 400))
+
+        prob_a, prob_b = probability(self.black.rating, self.white.rating), probability(self.white.rating,
+                                                                                        self.black.rating)
+
+        if self.result == "1-0":
+            self.white.rating = round(self.white.rating + k * (1 - prob_a))
+            self.black.rating = round(self.black.rating + k * (0 - prob_b))
+
+        elif self.result == "0-1":
+            self.white.rating = round(self.white.rating + k * (0 - prob_a))
+            self.black.rating = round(self.black.rating + k * (1 - prob_b))
+
+        else:
+            self.white.rating = round(self.white.rating + k * (0 - prob_a))
+            self.black.rating = round(self.black.rating + k * (0 - prob_b))
+
+    def sim_play(self):  # test function
+        self.result = random.choice(["1-0", "0-1", "1/2-1/2"])
+        self.add_match_to_players()
+
     def add_match_to_players(self):
         if self.result == "1-0":
             self.white.add_match(self.black, True, "1-0")
@@ -55,6 +82,8 @@ class Match:
         else:
             self.white.add_match(self.black, True, "0-1")
             self.black.add_match(self.white, False, "1-0")
+
+        self.update_elo()
 
 
 class TournamentPlayer(Player):
@@ -196,7 +225,7 @@ class SwissTournament(BaseTournament):
         width = 608
         height = 115
 
-        left = 60
+        left = 61
         right = left + width
         upper = 343
         lower = upper + height
@@ -204,7 +233,7 @@ class SwissTournament(BaseTournament):
         height_limit = 1800
         starting_rect = (left, upper, right, lower)
 
-        image = Image.open("templates/chess.png").convert()
+        image = Image.open("templates/template.png").convert()
         font = ImageFont.truetype("fonts/font.ttf", size=75)
 
         title_crop = image.crop(box=name_rect)
@@ -215,8 +244,8 @@ class SwissTournament(BaseTournament):
         title_height = 115
         _, _, w, h = draw_title.textbbox((0, 0), title, font=font)
 
-        draw_title.text(xy=((title_width - w) / 2, (title_height - h) / 2), text=title, font=font, fill="black", stroke_width=1,
-                        stroke_fill="black", align="center")
+        draw_title.text(xy=((title_width - w) / 2, (title_height - h) / 2), text=title, font=font, fill="#c7c7c7", stroke_width=1,
+                        stroke_fill="#c7c7c7", align="center")
 
         image.paste(title_crop, box=(name_rect[0], name_rect[1]))
 
@@ -225,7 +254,7 @@ class SwissTournament(BaseTournament):
             for item in lst:
                 item = image.crop(box=item)
                 item = item.filter(ImageFilter.GaussianBlur(radius=18))
-                item = ImageOps.expand(item, border=7, fill="black")
+                item = ImageOps.expand(item, border=7, fill="#c7c7c7")
                 res.append(item)
 
             return res
@@ -239,7 +268,7 @@ class SwissTournament(BaseTournament):
             # (left, upper, right, lower)
             second_rect = (starting_rect[2], upper, starting_rect[2] + width, lower)
             third_rect = (second_rect[2], upper, second_rect[2] + width, lower)
-            fourth_rect = (third_rect[2], upper, third_rect[2] - 6 + width, lower)
+            fourth_rect = (third_rect[2], upper, third_rect[2] - 8 + width, lower)
 
             rects = [starting_rect, second_rect, third_rect, fourth_rect]
             crops = create_crops(rects)
@@ -249,8 +278,8 @@ class SwissTournament(BaseTournament):
                 crop_copy = copy(crop)
                 draw = ImageDraw.Draw(crop_copy)
                 _, _, w, h = draw.textbbox((0, 0), str(column), font=font)
-                draw.text(((width - w) / 2, (height - h) / 2), str(column), font=font, fill="black", stroke_width=1,
-                          stroke_fill="black")
+                draw.text(((width - w) / 2, (height - h) / 2), str(column), font=font, fill="#c7c7c7", stroke_width=1,
+                          stroke_fill="#c7c7c7")
 
                 image.paste(crop_copy, box=(rect[0], rect[1]))
 
