@@ -262,6 +262,11 @@ class SwissTournament(BaseTournament):
         for i, player in enumerate(self.standings.keys()):
             pos = i + 1
             name = player.name
+
+            # fit name in rect
+            if len(name) > 15:
+                name = name[:12] + "..."
+
             points = player.points
             rating = player.rating
 
